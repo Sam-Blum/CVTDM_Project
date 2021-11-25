@@ -1,0 +1,84 @@
+---
+title: "CVTDM Project - Wine Quality"
+author: "Sam Blum and Mathis Da Silva"
+date: "25/11/2021"
+output: html_document
+---
+
+```{r, warning = FALSE, message = FALSE}
+rm(list = ls())
+
+library(naniar)
+library(ggplot2)
+library(reshape2)
+library(magrittr)
+library(dplyr)
+library(car)
+library(GGally)
+library(viridis)
+
+setwd("~/GitHub/CVTDM_Project")
+wine = read.csv(file = "winequality-white.csv", header = T, sep = ";")
+```
+
+### Data exploration
+
+```{r, warning = FALSE}
+dim(wine)
+
+sapply(wine, function(x) length(unique(x)))
+
+wine$quality = as.factor(wine$quality)
+
+summary(wine)
+
+sapply(wine[, -12], sd)
+
+str(wine)
+
+gg_miss_var(wine, show_pct = TRUE)
+```
+
+```{r, warning= FALSE}
+boxplots = ggplot(data = melt(wine, "quality"), aes(quality, value, group = quality)) + 
+  geom_boxplot(fill = "transparent", color = "black") + 
+  facet_wrap(~variable, scale = "free", ncol = 3) +
+  theme_classic()
+
+boxplots
+```
+
+```{r, warning= FALSE}
+logwine = wine
+logwine[,-12] = lapply(logwine[,-12], log)
+
+boxplots = ggplot(data = melt(logwine, "quality"), aes(quality, value, group = quality)) + 
+  geom_boxplot(fill = "transparent", color = "black") + 
+  facet_wrap(~variable, scale = "free", ncol = 3) +
+  theme_classic()
+
+boxplots
+```
+
+```{r, warning = FALSE}
+cor_mat = round(cor(wine[,-12]),2) 
+cor_mat2 = melt(cor_mat)
+
+ggplot(data = cor_mat2, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(Var2, Var1, label = value), color = "white", size = 3) +
+  labs(title = "Heatmap of the correlation table") +
+  theme(axis.text.x = element_text(angle=90))
+```
+
+```{r, warning = FALSE}
+wine$quality = as.numeric(wine$quality)
+model = lm(quality ~., data = wine)
+vif(model)
+
+model2 = lm(quality ~., data = wine[,-8])
+vif(model2)
+
+wine = wine[,-8]
+wine$quality = as.factor(wine$quality)
+```
