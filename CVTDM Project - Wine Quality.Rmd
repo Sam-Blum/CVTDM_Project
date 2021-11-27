@@ -16,6 +16,11 @@ library(dplyr)
 library(car)
 library(GGally)
 library(viridis)
+library(caret)
+library(ggplot2)
+library(cowplot)
+library(FNN)
+library(MASS)
 
 setwd("~/GitHub/CVTDM_Project")
 wine = read.csv(file = "winequality-white.csv", header = T, sep = ";")
@@ -28,11 +33,15 @@ dim(wine)
 
 sapply(wine, function(x) length(unique(x)))
 
+wine$binned_quality = as.factor(ifelse(wine$quality < 5, 'Low',
+                                ifelse(wine$quality >= 5 & wine$quality < 7, "Intermediate",
+                                ifelse(wine$quality >= 7, "High", "None"))))
+
 wine$quality = as.factor(wine$quality)
 
 summary(wine)
 
-sapply(wine[, -12], sd)
+sapply(wine[,-c(12,13)], sd)
 
 str(wine)
 
@@ -40,7 +49,7 @@ gg_miss_var(wine, show_pct = TRUE)
 ```
 
 ```{r, warning= FALSE}
-boxplots = ggplot(data = melt(wine, "quality"), aes(quality, value, group = quality)) + 
+boxplots = ggplot(data = melt(wine[,-13], "quality"), aes(quality, value, group = quality)) + 
   geom_boxplot(fill = "transparent", color = "black") + 
   facet_wrap(~variable, scale = "free", ncol = 3) +
   theme_classic()
@@ -49,10 +58,10 @@ boxplots
 ```
 
 ```{r, warning= FALSE}
-logwine = wine
-logwine[,-12] = lapply(logwine[,-12], log)
+alllogwine = wine
+alllogwine[,-c(12,13)] = lapply(alllogwine[,-c(12,13)], log) #log transform all variables except quality and binned quality
 
-boxplots = ggplot(data = melt(logwine, "quality"), aes(quality, value, group = quality)) + 
+boxplots = ggplot(data = melt(alllogwine[,-13], "quality"), aes(quality, value, group = quality)) + 
   geom_boxplot(fill = "transparent", color = "black") + 
   facet_wrap(~variable, scale = "free", ncol = 3) +
   theme_classic()
@@ -61,7 +70,7 @@ boxplots
 ```
 
 ```{r, warning = FALSE}
-cor_mat = round(cor(wine[,-12]),2) 
+cor_mat = round(cor(wine[,-c(12,13)]),2) 
 cor_mat2 = melt(cor_mat)
 
 ggplot(data = cor_mat2, aes(x = Var1, y = Var2, fill = value)) +
@@ -73,12 +82,88 @@ ggplot(data = cor_mat2, aes(x = Var1, y = Var2, fill = value)) +
 
 ```{r, warning = FALSE}
 wine$quality = as.numeric(wine$quality)
-model = lm(quality ~., data = wine)
+
+model = lm(quality ~., data = wine[,-13])
 vif(model)
 
-model2 = lm(quality ~., data = wine[,-8])
+model2 = lm(quality ~., data = wine[,-c(8,13)])
 vif(model2)
 
-wine = wine[,-8]
 wine$quality = as.factor(wine$quality)
+```
+
+### Data pre-processing
+
+```{r, warning = FALSE}
+logwine = wine[,-c(8,12)] #drop density and quality
+logwine[,-c(3,7,8,11)] = lapply(logwine[,-c(3,7,8,11)], log) #log transform all variables except citric.acid, total.sulfure.dioxide, pH and binned_quality
+head(logwine) 
+```
+
+### Data partitioning
+
+```{r, warning = FALSE}
+set.seed(1)
+train_index = createDataPartition(logwine$binned_quality, p = .5, list = FALSE)
+train_df = logwine[train_index,]
+valid_test_df = logwine[-train_index,]
+valid_index = createDataPartition(valid_test_df$binned_quality, p = .6, list = FALSE)
+valid_df = valid_test_df[valid_index,]
+test_df = valid_test_df[-valid_index,]
+```
+
+### Data normalization
+
+```{r, warning = FALSE}
+#initialize normalized training and validation data frames to the original ones
+train_norm_df = train_df
+valid_norm_df = valid_df
+test_norm_df = test_df
+
+#use PreProcess() from the caret package and predict() to normalize numerical variables
+norm_values = preProcess(train_df[,-c(11)], method = "range")
+train_norm_df[,-c(11)] = predict(norm_values, train_df[,-c(11)])
+valid_norm_df[,-c(11)] = predict(norm_values, valid_df[,-c(11)])
+test_norm_df[,-c(11)] = predict(norm_values, test_df[,-c(11)])
+```
+
+### KNN
+
+```{r, warning = FALSE}
+#initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
+best_k_df = data.frame(k = seq(1, 50, 1), accuracy = rep(0,50), balanced_accuracy = rep(0,50))
+
+#perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
+for(i in 1:50) {
+  knn_pred = knn(train = train_norm_df[,-11], test = valid_norm_df[,-11], cl = train_norm_df[,11], k = i)
+  best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[1]
+  low_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[3,1]
+  intermediate_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[2,1]
+  high_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[1,1]
+  best_k_df[i, 3] = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+}
+
+accuracy_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=accuracy), color="red") + theme_classic()
+balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_accuracy), color="blue") + theme_classic()
+
+plot_grid(accuracy_plot, balanced_accuray_plot, ncol = 1, align = "v")
+
+which.max(best_k_df$accuracy)#best k based on accuracy
+which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
+```
+
+```{r, warning = FALSE}
+#perform knn classification on the test set using best k = 1
+best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 1)
+confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
+
+accuracy = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[1]
+accuracy
+
+low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
 ```
