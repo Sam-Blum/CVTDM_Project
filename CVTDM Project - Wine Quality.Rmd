@@ -21,8 +21,14 @@ library(ggplot2)
 library(cowplot)
 library(FNN)
 library(MASS)
+library(rpart)
+library(rpart.plot)
+library(adabag)
+library(randomForest)
+library(imbalance)
+library(neuralnet)
 
-setwd("~/GitHub/CVTDM_Project")
+# setwd("~/GitHub/CVTDM_Project")
 wine = read.csv(file = "winequality-white.csv", header = T, sep = ";")
 ```
 
@@ -57,6 +63,20 @@ boxplots = ggplot(data = melt(wine[,-13], "quality"), aes(quality, value, group 
 boxplots
 ```
 
+```{r}
+# Histograms for each variable
+par(mfrow=c(2, 3))
+for (i in 1:11) {
+  hist(wine[, i], main = c("Histogram for", names(wine[i])), xlab=names(wine[i]))
+  abline(v = mean(wine[, i]), col = 1, lwd = 2)
+  abline(v = median(wine[, i]), col = 2, lwd = 2)
+}
+
+#Barplot for quality
+par(mfrow=c(1, 1))
+barplot(table(wine$binned_quality), main = c("Histogram for quality", names(wine$binned_quality)), xlab=names(wine$binned_quality))
+```
+
 ```{r, warning= FALSE}
 alllogwine = wine
 alllogwine[,-c(12,13)] = lapply(alllogwine[,-c(12,13)], log) #log transform all variables except quality and binned quality
@@ -67,6 +87,16 @@ boxplots = ggplot(data = melt(alllogwine[,-13], "quality"), aes(quality, value, 
   theme_classic()
 
 boxplots
+```
+
+```{r}
+# Gives histogram for log
+par(mfrow=c(2, 3))
+for (i in 1:11) {
+  hist(alllogwine[, i], main = c("Histogram for", names(alllogwine[i])), xlab=names(alllogwine[i]))
+  abline(v = mean(alllogwine[, i]), col = 1, lwd = 2)
+  abline(v = median(alllogwine[, i]), col = 2, lwd = 2)
+}
 ```
 
 ```{r, warning = FALSE}
@@ -90,6 +120,10 @@ model2 = lm(quality ~., data = wine[,-c(8,13)])
 vif(model2)
 
 wine$quality = as.factor(wine$quality)
+```
+
+```{r}
+ggparcoord(wine, columns = 1:11, groupColumn = 13, showPoints = TRUE, alphaLines = 0.3, scale = "uniminmax") + scale_color_viridis(discrete = TRUE) + theme(axis.text.x = element_text(angle = 90))
 ```
 
 ### Data pre-processing
@@ -167,3 +201,68 @@ high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1
 balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 balanced_accuracy
 ```
+
+### Classification tree
+
+(1) Full grown tree:
+```{r}
+tree1 <- rpart(binned_quality ~ ., data=train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
+
+# Look at the minimum standard error
+printcp(tree1)
+which.min(tree1$cptable[, 4])
+
+# Take the cp associated with the minimum standard error to prune the tree:
+pruned_tree1 <- prune(tree1, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
+prp(pruned_tree1)
+
+# If we want to look at the most important variables:
+pruned_tree1$variable.importance
+
+# We can now predict the outcome:
+pruned_tree1_pred_valid <- predict(pruned_tree1, valid_df, type="class")
+pruned_tree_cm <- confusionMatrix(pruned_tree1_pred_valid, valid_df$binned_quality)
+pruned_tree_cm
+
+(pruned_tree_cm$byClass[3,1] + pruned_tree_cm$byClass[2,1] + pruned_tree_cm$byClass[1,1] ) / 3
+```
+
+(2) Boosted tree:
+```{r}
+set.seed(1)
+boost <- boosting(binned_quality ~ ., data=train_df, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
+boost_tree1_pred_valid <- predict(boost, valid_df, type="class")
+boost.cm <- confusionMatrix(as.factor(boost_tree1_pred_valid$class), valid_df$binned_quality)
+boost.cm
+
+(boost.cm$byClass[3,1] + boost.cm$byClass[2,1] + boost.cm$byClass[1,1]) / 3
+```
+
+(3) Bagged tree:
+```{r}
+set.seed(1)
+bag <- bagging(binned_quality ~ ., data=train_df)
+bag_tree1_pred_valid <- predict(bag, valid_df, type="class")
+bag.cm <- confusionMatrix(as.factor(bag_tree1_pred_valid$class), valid_df$binned_quality)
+bag.cm
+```
+
+(4) Random Forest:
+```{r}
+set.seed(1)
+rf1 <- randomForest(train_df[-11], train_df$binned_quality)
+rf1_pred_valid <- predict(rf1, valid_df, type="class")
+rf1.cm <- confusionMatrix(rf1_pred_valid, valid_df$binned_quality)
+rf1.cm
+```
+
+
+### Neural Nets
+```{r}
+nn1 <- neuralnet(binned_quality ~ ., data = train_norm_df, hidden = 1, linear.output = FALSE)
+nn1$weights
+plot(nn1, rep="best", cex=0.8)
+
+valid_pred_nn1 <- predict(nn1, valid_norm_df[, -11])
+```
+
