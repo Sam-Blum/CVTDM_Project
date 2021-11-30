@@ -206,6 +206,7 @@ balanced_accuracy
 
 (1) Full grown tree:
 ```{r}
+set.seed(1)
 tree1 <- rpart(binned_quality ~ ., data=train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
 
 # Look at the minimum standard error
@@ -213,6 +214,7 @@ printcp(tree1)
 which.min(tree1$cptable[, 4])
 
 # Take the cp associated with the minimum standard error to prune the tree:
+set.seed(1)
 pruned_tree1 <- prune(tree1, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
 prp(pruned_tree1)
 
@@ -223,19 +225,15 @@ pruned_tree1$variable.importance
 pruned_tree1_pred_valid <- predict(pruned_tree1, valid_df, type="class")
 pruned_tree_cm <- confusionMatrix(pruned_tree1_pred_valid, valid_df$binned_quality)
 pruned_tree_cm
-
-(pruned_tree_cm$byClass[3,1] + pruned_tree_cm$byClass[2,1] + pruned_tree_cm$byClass[1,1] ) / 3
 ```
 
 (2) Boosted tree:
 ```{r}
 set.seed(1)
-boost <- boosting(binned_quality ~ ., data=train_df, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
+boost <- boosting(binned_quality ~ ., data=train_df)
 boost_tree1_pred_valid <- predict(boost, valid_df, type="class")
 boost.cm <- confusionMatrix(as.factor(boost_tree1_pred_valid$class), valid_df$binned_quality)
 boost.cm
-
-(boost.cm$byClass[3,1] + boost.cm$byClass[2,1] + boost.cm$byClass[1,1]) / 3
 ```
 
 (3) Bagged tree:
@@ -256,13 +254,23 @@ rf1.cm <- confusionMatrix(rf1_pred_valid, valid_df$binned_quality)
 rf1.cm
 ```
 
-
 ### Neural Nets
-```{r}
-nn1 <- neuralnet(binned_quality ~ ., data = train_norm_df, hidden = 1, linear.output = FALSE)
-nn1$weights
-plot(nn1, rep="best", cex=0.8)
 
-valid_pred_nn1 <- predict(nn1, valid_norm_df[, -11])
+```{r}
+# 1 node
+set.seed(1)
+nn1 <- neuralnet(binned_quality ~ ., data = train_norm_df, hidden = 2, linear.output = FALSE)
+# nn1$weights
+# plot(nn1, rep="best", cex=0.8)
+
+valid_pred_nn1 <- data.frame(predict(nn1, valid_norm_dummy_df[, -11]))
+names(valid_pred_nn1)[1:3] <- c("High", "Intermediate", "Low")
+valid_pred_nn1$Prediction <- 0
+
+for(i in 1:length(valid_pred_nn1$High)) {
+  valid_pred_nn1[i, 4] <- names(which.max(valid_pred_nn1[i, 1:3]))
+}
+
+confusionMatrix(as.factor(valid_pred_nn1$Prediction), valid_norm_df$binned_quality)
 ```
 
