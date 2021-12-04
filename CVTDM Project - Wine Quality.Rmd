@@ -26,6 +26,7 @@ library(rpart.plot)
 library(adabag)
 library(randomForest)
 library(imbalance)
+library(e1071)
 library(neuralnet)
 
 # setwd("~/GitHub/CVTDM_Project")
@@ -165,24 +166,24 @@ test_norm_df[,-c(11)] = predict(norm_values, test_df[,-c(11)])
 
 ```{r, warning = FALSE}
 #initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
-best_k_df = data.frame(k = seq(1, 50, 1), accuracy = rep(0,50), balanced_accuracy = rep(0,50))
+best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
 
 #perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
 for(i in 1:50) {
   knn_pred = knn(train = train_norm_df[,-11], test = valid_norm_df[,-11], cl = train_norm_df[,11], k = i)
-  best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[1]
+  best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[2]
   low_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[3,1]
   intermediate_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[2,1]
   high_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[1,1]
   best_k_df[i, 3] = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 }
 
-accuracy_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=accuracy), color="red") + theme_classic()
+kappa_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=kappa), color="red") + theme_classic()
 balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_accuracy), color="blue") + theme_classic()
 
-plot_grid(accuracy_plot, balanced_accuray_plot, ncol = 1, align = "v")
+plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
 
-which.max(best_k_df$accuracy)#best k based on accuracy
+which.max(best_k_df$kappa)#best k based on kappa
 which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
 ```
 
@@ -191,8 +192,8 @@ which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
 best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 1)
 confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
 
-accuracy = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[1]
-accuracy
+kappa = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
+kappa
 
 low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
 intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
@@ -274,3 +275,153 @@ for(i in 1:length(valid_pred_nn1$High)) {
 confusionMatrix(as.factor(valid_pred_nn1$Prediction), valid_norm_df$binned_quality)
 ```
 
+### Ordinal logistic regression 
+
+```{r, warning = FALSE}
+log_reg = polr(binned_quality ~ ., data = train_df)
+summary(log_reg)
+```
+
+```{r, warning = FALSE}
+log_prob = predict(log_reg, newdata = test_df, type = "p")
+
+log_pred = data.frame("pred" = colnames(log_prob)[apply(log_prob,1,which.max)])
+log_pred$pred = as.factor(log_pred$pred)
+
+confusionMatrix(log_pred$pred, test_df[,11])
+
+kappa = confusionMatrix(log_pred$pred, test_df[,11])$overall[2]
+kappa
+
+low_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
+```
+
+### Naive Bayes
+
+```{r, warning = FALSE}
+nb_model = naiveBayes (binned_quality ~ ., data = train_df)
+nb_model
+```
+
+```{r, warning = FALSE}
+nb_pred = predict(nb_model, newdata = test_df, type = "class")
+confusionMatrix(nb_pred, test_df[,11])
+
+kappa = confusionMatrix(nb_pred, test_df[,11])$overall[2]
+kappa
+
+low_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
+```
+
+### Oversampled KNN 
+
+```{r, warning = FALSE}
+set.seed(1)
+new_train_df = rwo(train_df, 400, "binned_quality")
+os_train_df = rbind(train_df, new_train_df)
+```
+
+```{r, warning = FALSE}
+os_train_norm_df = os_train_df
+
+#use PreProcess() from the caret package and predict() to normalize numerical variables
+os_norm_values = preProcess(os_train_df[,-c(11)], method = "range")
+os_train_norm_df[,-c(11)] = predict(os_norm_values, os_train_df[,-c(11)])
+```
+
+```{r, warning = FALSE}
+#initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
+best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
+
+#perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
+for(i in 1:50) {
+  knn_pred = knn(train = os_train_norm_df[,-11], test = valid_norm_df[,-11], cl = os_train_norm_df[,11], k = i)
+  best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[2]
+  low_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[3,1]
+  intermediate_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[2,1]
+  high_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[1,1]
+  best_k_df[i, 3] = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+}
+
+kappa_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=kappa), color="red") + theme_classic()
+balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_accuracy), color="blue") + theme_classic()
+
+plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
+
+which.max(best_k_df$kappa)#best k based on accuracy
+which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
+```
+
+```{r, warning = FALSE}
+#perform knn classification on the test set using best k = 2
+best_knn_pred = knn(train = os_train_norm_df[,-11], test = test_norm_df[,-11], cl = os_train_norm_df[,11], k = 2)
+confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
+
+kappa = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
+kappa
+
+low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
+```
+
+### Oversampled ordinal logistic regression
+
+```{r, warning = FALSE}
+os_log_reg = polr(binned_quality ~ ., data = os_train_df)
+summary(os_log_reg)
+```
+
+```{r, warning = FALSE}
+os_log_prob = predict(os_log_reg, newdata = test_df, type = "p")
+
+os_log_pred = data.frame("pred" = colnames(os_log_prob)[apply(os_log_prob,1,which.max)])
+os_log_pred$pred = as.factor(os_log_pred$pred)
+
+confusionMatrix(os_log_pred$pred, test_df[,11])
+
+kappa = confusionMatrix(os_log_pred$pred, test_df[,11])$overall[2]
+kappa
+
+low_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
+```
+
+### Oversampled naive Bayes
+
+```{r, warning = FALSE}
+os_nb_model = naiveBayes (binned_quality ~ ., data = os_train_df)
+os_nb_model
+```
+
+```{r, warning = FALSE}
+os_nb_pred = predict(os_nb_model, newdata = test_df, type = "class")
+confusionMatrix(os_nb_pred, test_df[,11])
+
+kappa = confusionMatrix(os_nb_pred, test_df[,11])$overall[2]
+kappa
+
+low_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[1,1]
+
+balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+balanced_accuracy
+```
