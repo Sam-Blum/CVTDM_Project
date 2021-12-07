@@ -33,14 +33,16 @@ library(neuralnet)
 wine = read.csv(file = "winequality-white.csv", header = T, sep = ";")
 ```
 
-### Data Exploration and Pre-Processing
+# Data Exploratory Analysis
+## First Insights
 
+First, let's have a look at the variables and their types:
 ```{r, warning = FALSE}
 str(wine)
 ```
 
+Now, let's create a *binned_quality* variable for the purpose of the problem:
 ```{r}
-# We create the new binned quality variable:
 sapply(wine, function(x) length(unique(x))) 
 wine$binned_quality = as.factor(ifelse(wine$quality < 5, 'Low',
                                 ifelse(wine$quality >= 5 & wine$quality < 7, "Intermediate",
@@ -49,8 +51,8 @@ wine$binned_quality = as.factor(ifelse(wine$quality < 5, 'Low',
 wine$quality = as.factor(wine$quality)
 ```
 
+We can also have a look at the summary statistics:
 ```{r}
-# Summary statistics and overview of the data with the new quality variable
 summary(wine)
 
 sapply(wine[,-c(12,13)], sd)
@@ -58,8 +60,10 @@ sapply(wine[,-c(12,13)], sd)
 str(wine)
 ```
 
+## Visualisation & Distributions
+
+Let's look at the distribution of the variables based on the quality variable (not binned, on a 0-10 scale):
 ```{r message=FALSE, warning=FALSE}
-# [...]
 boxplots = ggplot(data = melt(wine[,-13], "quality"), aes(quality, value, group = quality)) + 
   geom_boxplot(fill = "transparent", color = "black") + 
   facet_wrap(~variable, scale = "free", ncol = 3) +
@@ -68,8 +72,10 @@ boxplots = ggplot(data = melt(wine[,-13], "quality"), aes(quality, value, group 
 boxplots
 ```
 
+First, one can see that there are not a lot of variation between wine of different quality. There is a slight increase in alcohol quantity for wine of better quality, as well as a slight increase in pH levels.
+
+Let's continue by exploring the distribution of each variable:
 ```{r}
-# Histograms for each variable
 par(mfrow=c(2, 3))
 for (i in 1:11) {
   hist(wine[, i], main = c("Histogram for", names(wine[i])), xlab=names(wine[i]))
@@ -77,11 +83,13 @@ for (i in 1:11) {
   abline(v = median(wine[, i]), col = 2, lwd = 2)
 }
 
-#Barplot for quality
 par(mfrow=c(1, 1))
 barplot(table(wine$binned_quality), main = c("Histogram for quality", names(wine$binned_quality)), xlab=names(wine$binned_quality))
 ```
 
+Our dataset faces two problems we have to deal with: imbalance between quality groups ('Intermediate' quality is over-represented) and skewness in the distribution of the explanatory variables.
+
+To correct for the skewness, we can log-transform the variables of interest:
 ```{r, warning= FALSE}
 alllogwine = wine
 alllogwine[,-c(12,13)] = lapply(alllogwine[,-c(12,13)], log) #log transform all variables except quality and binned quality
@@ -94,8 +102,8 @@ boxplots = ggplot(data = melt(alllogwine[,-13], "quality"), aes(quality, value, 
 boxplots
 ```
 
+Let's have a look at the distribution of the variables after log-tranformation:
 ```{r}
-# Gives histogram for log
 par(mfrow=c(2, 3))
 for (i in 1:11) {
   hist(alllogwine[, i], main = c("Histogram for", names(alllogwine[i])), xlab=names(alllogwine[i]))
@@ -104,8 +112,12 @@ for (i in 1:11) {
 }
 ```
 
+Clearly, we see an improvement in the distribution of the variables, with less variability due to extreme observations. There are still some variables for which the transformation does not add much: *citric.acid*, *total.sulfure.dioxide* and *pH*. Indeed, these variables were already pretty well distributed. Also, note that density is still right-skewed. 
+
+## Correlation Between Explanatory Variables
+
+Now, let's  have a look at the correlation between the explanatory variables:
 ```{r, warning = FALSE}
-# 
 cor_mat = round(cor(wine[,-c(12,13)]),2) 
 cor_mat2 = melt(cor_mat)
 
@@ -116,32 +128,50 @@ ggplot(data = cor_mat2, aes(x = Var1, y = Var2, fill = value)) +
   theme(axis.text.x = element_text(angle=90))
 ```
 
+We notice a high negative correlation coefficient between alcohol and density (-0.78). Because it is generally better to reduce the number of dimensions and because a high correlation might lead to multicollinearity issues, one can decide to drop the *density* variable.
+
+Let's look at the VIFs (Variance Inflation Factors) by performing a linear regression:
 ```{r, warning = FALSE}
 wine$quality = as.numeric(wine$quality)
 
 model = lm(quality ~., data = wine[,-13])
 vif(model)
+```
 
+It appears that the *density* variable has a very high VIF (28.2) compared to other variables. Hence, let's have a look at the model without *density* and see if there is an improvement:
+```{r}
 model2 = lm(quality ~., data = wine[,-c(8,13)])
 vif(model2)
 
 wine$quality = as.factor(wine$quality)
 ```
 
+Clearly, the VIF of *alcohol* is lower compared to before (7.7 vs. 1.6). Thus, we will drop *density* from our models. 
+
+Finally, let's look at this plot:
 ```{r}
 ggparcoord(wine, columns = 1:11, groupColumn = 13, showPoints = TRUE, alphaLines = 0.3, scale = "uniminmax") + scale_color_viridis(discrete = TRUE) + theme(axis.text.x = element_text(angle = 90))
 ```
 
-### Data pre-processing
+[... COMMENTS].
 
+# Data pre-processing
+## Variable selection and log-transformation
+
+First, let's drop density and quality:
 ```{r, warning = FALSE}
-logwine = wine[,-c(8,12)] #drop density and quality
+logwine = wine[,-c(8,12)]
+```
+
+Now, let's log transform all variables except *citric.acid*, *total.sulfure.dioxide*, *pH* and *binned_quality*:
+```{r, warning = FALSE}
 logwine[,-c(3,7,8,11)] = lapply(logwine[,-c(3,7,8,11)], log) #log transform all variables except citric.acid, total.sulfure.dioxide, pH and binned_quality
 head(logwine) 
 ```
 
-### Data partitioning
+## Data partitioning
 
+We can now proceed to the partitioning of the data, with a training set (50%), validation set (30%) and a test set (20%):
 ```{r, warning = FALSE}
 set.seed(1)
 train_index = createDataPartition(logwine$binned_quality, p = .5, list = FALSE)
@@ -152,8 +182,9 @@ valid_df = valid_test_df[valid_index,]
 test_df = valid_test_df[-valid_index,]
 ```
 
-### Data normalization
+## Data normalization
 
+Because we use some classification techniques that require the data to be on a same scale (kNN, Neural Nets and Logistic Regression), we normalize the data on a [0,1] scale:
 ```{r, warning = FALSE}
 #initialize normalized training and validation data frames to the original ones
 train_norm_df = train_df
@@ -167,33 +198,49 @@ valid_norm_df[,-c(11)] = predict(norm_values, valid_df[,-c(11)])
 test_norm_df[,-c(11)] = predict(norm_values, test_df[,-c(11)])
 ```
 
-### Dummyfication of the outcome variable (for using Neural Nets):
+## Dummyfication of the outcome variable
+
+Because we perform multi-label classification, and because the *neuralnet* package requires the outcome variable to be coded as (0, 1) vector, we create 3 dummies, one for every quality level ('High', 'Intermediate' and 'Low'). Note that we also apply this to validation and training sets:
 ```{r}
-# Need to dummify the outcome variable (because of the neuralnet package):
+# Initialize normalized training and validation data frames with dummies to the normalized ones
 train_norm_dummy_df <- train_norm_df
 valid_norm_dummy_df <- valid_norm_df
 test_norm_dummy_df <- test_norm_df
 
-train_norm_dummy_df$low_quality <- ifelse(train_norm_dummy_df$binned_quality == "Low", 1, 0)
-train_norm_dummy_df$intermediate_quality <- ifelse(train_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
+# Creation of the vectors
 train_norm_dummy_df$high_quality <- ifelse(train_norm_dummy_df$binned_quality == "High", 1, 0)
+train_norm_dummy_df$intermediate_quality <- ifelse(train_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
+train_norm_dummy_df$low_quality <- ifelse(train_norm_dummy_df$binned_quality == "Low", 1, 0)
 
-valid_norm_dummy_df$low_quality <- ifelse(valid_norm_dummy_df$binned_quality == "Low", 1, 0)
-valid_norm_dummy_df$intermediate_quality <- ifelse(valid_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
 valid_norm_dummy_df$high_quality <- ifelse(valid_norm_dummy_df$binned_quality == "High", 1, 0)
+valid_norm_dummy_df$intermediate_quality <- ifelse(valid_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
+valid_norm_dummy_df$low_quality <- ifelse(valid_norm_dummy_df$binned_quality == "Low", 1, 0)
 
-test_norm_dummy_df$low_quality <- ifelse(test_norm_dummy_df$binned_quality == "Low", 1, 0)
-test_norm_dummy_df$intermediate_quality <- ifelse(test_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
 test_norm_dummy_df$high_quality <- ifelse(test_norm_dummy_df$binned_quality == "High", 1, 0)
+test_norm_dummy_df$intermediate_quality <- ifelse(test_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
+test_norm_dummy_df$low_quality <- ifelse(test_norm_dummy_df$binned_quality == "Low", 1, 0)
 ```
 
-### Oversampling
+## Oversampling
+
+As stated earlier in the Data Exploratory Analysis, we face an imbalanced dataset:
+```{r}
+table(logwine$binned_quality)
+prop.table(table(logwine$binned_quality))
+```
+
+We see that 'Intermediate' quality represents 74.6% of observations, whereas 'High' and 'Low' quality only represent 21.6% and 3.7% of observations (respectively). Thus, the classification models could have problems in predicting 'High', and even more importantly 'Low' observations, as they only represent 3.7% of observations.
+
+To solve this problem, we can oversample the 'Low' observations and add them into the training set. We use Random Walk Oversampling, as this method is known to be one of the most effective, especially when facing such an imbalanced dataset (Huaxiang Zhang, Mingfang Li, 2014). 
+
+Now, let's create 400 new instances for 'Low' quality, and let's add them to the training set:
 ```{r, warning = FALSE}
 set.seed(1)
-add_train_df = rwo(train_df, 400, "binned_quality")
-os_train_df = rbind(train_df, add_train_df)
+add_train_df = rwo(train_df, 400, "binned_quality") # Generation of 400 instances
+os_train_df = rbind(train_df, add_train_df) # Combining the new instances to the training set
 ```
 
+Let's normalize the newly generated observations, and add them to the normalize training set:
 ```{r, warning = FALSE}
 os_train_norm_df = os_train_df
 
@@ -202,220 +249,27 @@ os_norm_values = preProcess(os_train_df[,-c(11)], method = "range")
 os_train_norm_df[,-c(11)] = predict(os_norm_values, os_train_df[,-c(11)])
 ```
 
-### Dummyfication of the outcome variable (for using Neural Nets **with oversampling**):
+We can also add these newly generated observations to the normalized training set with dummies for quality (used for Neural Nets):
 ```{r}
-# Need to dummify the outcome variable on the oversampled training set:
+# Initialize oversampled normalized training set with dummies to the oversampled normalized one
 os_train_norm_dummy_df <- os_train_norm_df
 
-os_train_norm_dummy_df$low_quality <- ifelse(os_train_norm_dummy_df$binned_quality == "Low", 1, 0)
-os_train_norm_dummy_df$intermediate_quality <- ifelse(os_train_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
 os_train_norm_dummy_df$high_quality <- ifelse(os_train_norm_dummy_df$binned_quality == "High", 1, 0)
+os_train_norm_dummy_df$intermediate_quality <- ifelse(os_train_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
+os_train_norm_dummy_df$low_quality <- ifelse(os_train_norm_dummy_df$binned_quality == "Low", 1, 0)
 ```
 
-### KNN
+# Analysis
 
-```{r, warning = FALSE}
-#initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
-best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
+In this part, we will proceed to the analysis using the following classification techniques: kNN, Ordinal Logistic Regression, Naive Bayes, Classification Trees (fitted to CP, Boosted Tree, Bagged Tree and Random Forest) and Neural Nets. Finally, we will combine the results to produce two ensemble methods based on Majority Voting and Mean Probability rules.
 
-#perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
-for(i in 1:50) {
-  knn_pred = knn(train = train_norm_df[,-11], test = valid_norm_df[,-11], cl = train_norm_df[,11], k = i)
-  best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[2]
-  low_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[3,1]
-  intermediate_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[2,1]
-  high_sensitivity = confusionMatrix(knn_pred, valid_norm_df[,11])$byClass[1,1]
-  best_k_df[i, 3] = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-}
+Note that we will use the training sets with oversampling on 'Low' quality observations for all methods.
 
-kappa_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=kappa), color="red") + theme_classic()
-balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_accuracy), color="blue") + theme_classic()
+## kNN
 
-plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
+[COMMENTS ON METHODOLOGY]
 
-which.max(best_k_df$kappa)#best k based on kappa
-which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
-```
-
-```{r, warning = FALSE}
-#perform knn classification on the test set using best k = 1
-best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 1)
-confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
-
-kappa = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
-kappa
-
-low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
-intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
-high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
-
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
-```
-
-### Ordinal logistic regression 
-
-```{r, warning = FALSE}
-log_reg = polr(binned_quality ~ ., data = train_df)
-summary(log_reg)
-```
-
-```{r, warning = FALSE}
-log_prob = predict(log_reg, newdata = test_df, type = "p")
-
-log_pred = data.frame("pred" = colnames(log_prob)[apply(log_prob,1,which.max)])
-log_pred$pred = as.factor(log_pred$pred)
-
-confusionMatrix(log_pred$pred, test_df[,11])
-
-kappa = confusionMatrix(log_pred$pred, test_df[,11])$overall[2]
-kappa
-
-low_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[3,1]
-intermediate_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[2,1]
-high_sensitivity = confusionMatrix(log_pred$pred, test_df[,11])$byClass[1,1]
-
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
-```
-
-### Naive Bayes
-
-```{r, warning = FALSE}
-nb_model = naiveBayes (binned_quality ~ ., data = train_df)
-nb_model
-```
-
-```{r, warning = FALSE}
-nb_pred = predict(nb_model, newdata = test_df, type = "class")
-confusionMatrix(nb_pred, test_df[,11])
-
-kappa = confusionMatrix(nb_pred, test_df[,11])$overall[2]
-kappa
-
-low_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[3,1]
-intermediate_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[2,1]
-high_sensitivity = confusionMatrix(nb_pred, test_df[,11])$byClass[1,1]
-
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
-```
-
-### Classification trees:
-
-(1) Full grown tree:
-```{r}
-set.seed(1)
-tree1 <- rpart(binned_quality ~ ., data=train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
-
-# Look at the minimum standard error
-printcp(tree1)
-which.min(tree1$cptable[, 4])
-
-# Take the cp associated with the minimum standard error to prune the tree:
-set.seed(1)
-pruned_tree1 <- prune(tree1, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
-prp(pruned_tree1)
-
-# If we want to look at the most important variables:
-pruned_tree1$variable.importance
-
-# We can now predict the outcome:
-pruned_tree1_pred_valid <- predict(pruned_tree1, valid_df, type="class")
-pruned_tree_cm <- confusionMatrix(pruned_tree1_pred_valid, valid_df$binned_quality)
-pruned_tree_cm
-```
-
-(2) Boosted tree:
-```{r}
-set.seed(1)
-boost1 <- boosting(binned_quality ~ ., data=train_df, control = rpart.control(xval = 5))
-boost1_pred_valid <- predict(boost1, valid_df, type="class")
-boost1.cm <- confusionMatrix(as.factor(boost1_pred_valid$class), valid_df$binned_quality)
-boost1.cm
-```
-
-(3) Bagged tree:
-```{r}
-set.seed(1)
-bag1 <- bagging(binned_quality ~ ., data=train_df, control = rpart.control(xval = 5))
-bag1_pred_valid <- predict(bag1, valid_df, type="class")
-bag1.cm <- confusionMatrix(as.factor(bag1_pred_valid$class), valid_df$binned_quality)
-bag1.cm
-```
-
-(4) Random Forest:
-```{r}
-set.seed(1)
-rf1 <- randomForest(train_df[-11], train_df$binned_quality, control = rpart.control(xval = 5))
-rf1_pred_valid <- predict(rf1, valid_df, type="class")
-rf1.cm <- confusionMatrix(rf1_pred_valid, valid_df$binned_quality)
-rf1.cm
-```
-
-### Neural Nets
-
-(1) Determination of the best kappa with a threshold of 0.1
-```{r}
-nn_nodes_1 <- data.frame("Number_Nodes" = seq(from= 2, to = 10), "Kappa_Value")
-
-for (i in 2:10){
-  set.seed(1)
-  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.1)
-  valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 14)]))
-  names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
-  valid_pred_nn$Prediction <- NA
-
-  for(j in 1:length(valid_pred_nn$High)) {
-  valid_pred_nn[j, 4] <- names(which.max(valid_pred_nn[j, 1:3]))
-}
-
-  nn_nodes_1[i-1, 2] <- confusionMatrix(as.factor(valid_pred_nn$Prediction),valid_norm_df$binned_quality)[["overall"]][["Kappa"]]
-}
-
-nn_nodes_1
-```
-
-(2) Determination of the best kappa with a threshold of 0.2
-```{r}
-nn_nodes_2 <- data.frame("Number_Nodes" = seq(from= 2, to = 10), "Kappa_Value" = NA)
-
-for (i in 2:10){
-  set.seed(1)
-  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.2)
-  valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 14)]))
-  names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
-  valid_pred_nn$Prediction <- NA
-
-  for(j in 1:length(valid_pred_nn$High)) {
-  valid_pred_nn[j, 4] <- names(which.max(valid_pred_nn[j, 1:3]))
-}
-
-  nn_nodes_2[i-1, 2] <- confusionMatrix(as.factor(valid_pred_nn$Prediction),valid_norm_df$binned_quality)[["overall"]][["Kappa"]]
-}
-
-nn_nodes_2
-```
-
-(3) Best Neural Net is with threshold = 0.1 and 8 nodes:
-```{r}
-set.seed(1)
-nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = 8, linear.output = FALSE, threshold = 0.1)
-
-test_pred_nn <- data.frame(predict(nn, test_norm_dummy_df[, -c(11, 14)]))
-names(test_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
-test_pred_nn$Prediction <- NA
-
-for(j in 1:length(test_pred_nn$High)) {
-test_pred_nn[j, 4] <- names(which.max(test_pred_nn[j, 1:3]))
-}
-
-confusionMatrix(as.factor(test_pred_nn$Prediction), test_norm_df$binned_quality)
-```
-
-
-### Oversampled KNN 
-
+Let's proceed to the kNN:
 ```{r, warning = FALSE}
 #initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
 best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
@@ -439,23 +293,30 @@ which.max(best_k_df$kappa)#best k based on accuracy
 which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
 ```
 
+From the plots above, it seems that the best number of neighbours (i.e., number of k's) is k=2 if we want to maximize the balanced accuracy and the kappa value. 
+
+Choosing this parameter(k=2), we can assess the predictive performance of the kNN model on the test set:
 ```{r, warning = FALSE}
-#perform knn classification on the test set using best k = 2
-best_knn_pred = knn(train = os_train_norm_df[,-11], test = test_norm_df[,-11], cl = os_train_norm_df[,11], k = 2)
+#perform knn classification on the test set using best k = 1
+best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2)
 confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
 
-kappa = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
-kappa
+kappa_best_knn = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
+kappa_best_knn
 
 low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
 intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
 high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
 
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
+bal_acc_best_knn = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_best_knn
 ```
 
-### Oversampled ordinal logistic regression
+[COMMENTS ON RESULTS]
+
+## Ordinal logistic regression 
+
+[COMMENTS ON METHODOLOGY]
 
 ```{r, warning = FALSE}
 os_log_reg = polr(binned_quality ~ ., data = os_train_df)
@@ -470,18 +331,22 @@ os_log_pred$pred = as.factor(os_log_pred$pred)
 
 confusionMatrix(os_log_pred$pred, test_df[,11])
 
-kappa = confusionMatrix(os_log_pred$pred, test_df[,11])$overall[2]
-kappa
+kappa_logist = confusionMatrix(os_log_pred$pred, test_df[,11])$overall[2]
+kappa_logist
 
 low_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[3,1]
 intermediate_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[2,1]
 high_sensitivity = confusionMatrix(os_log_pred$pred, test_df[,11])$byClass[1,1]
 
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
+bal_acc_logist = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_logist
 ```
 
-### Oversampled naive Bayes
+[COMMENTS ON RESULTS]
+
+## Naive Bayes
+
+[COMMENTS ON METHODOLOGY]
 
 ```{r, warning = FALSE}
 os_nb_model = naiveBayes (binned_quality ~ ., data = os_train_df)
@@ -492,86 +357,192 @@ os_nb_model
 os_nb_pred = predict(os_nb_model, newdata = test_df, type = "class")
 confusionMatrix(os_nb_pred, test_df[,11])
 
-kappa = confusionMatrix(os_nb_pred, test_df[,11])$overall[2]
-kappa
+kappa_bayes = confusionMatrix(os_nb_pred, test_df[,11])$overall[2]
+kappa_bayes
 
 low_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[3,1]
 intermediate_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[2,1]
 high_sensitivity = confusionMatrix(os_nb_pred, test_df[,11])$byClass[1,1]
 
-balanced_accuracy = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
-balanced_accuracy
+bal_acc_bayes = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_bayes
 ```
 
-### Oversampled classification trees :
+[COMMENTS ON RESULTS]
 
-(1) Full grown tree:
+## Classification trees
+### Regular Classification Tree
+
+Let's first create a fully grown tree before pruning it to the best CP (i.e., CP associated with the minimum standard error):
 ```{r}
 set.seed(1)
-tree2 <- rpart(binned_quality ~ ., data=os_train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
+tree1 <- rpart(binned_quality ~ ., data=os_train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
 
 # Look at the minimum standard error
-printcp(tree2)
-which.min(tree2$cptable[, 4])
+printcp(tree1)
+which.min(tree1$cptable[, 4])
 
 # Take the cp associated with the minimum standard error to prune the tree:
 set.seed(1)
-pruned_tree2 <- prune(tree2, cp = tree2$cptable[which.min(tree2$cptable[, "xerror"]), "CP"])
-prp(pruned_tree2)
+pruned_tree1 <- prune(tree1, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
+prp(pruned_tree1)
 
 # If we want to look at the most important variables:
-pruned_tree2$variable.importance
+pruned_tree1$variable.importance
 
 # We can now predict the outcome:
-pruned_tree2_pred_valid <- predict(pruned_tree2, valid_df, type="class")
-pruned_tree_cm <- confusionMatrix(pruned_tree2_pred_valid, valid_df$binned_quality)
-pruned_tree_cm
+pruned_tree1_pred_test <- predict(pruned_tree1, test_df, type="class")
+pruned_tree1_cm <- confusionMatrix(pruned_tree1_pred_test, test_df$binned_quality)
+pruned_tree1_cm
+
+kappa_pruned_tree1 = pruned_tree1_cm$overall[2]
+kappa_pruned_tree1
+
+low_sensitivity = pruned_tree1_cm$byClass[3,1]
+intermediate_sensitivity = pruned_tree1_cm$byClass[2,1]
+high_sensitivity = pruned_tree1_cm$byClass[1,1]
+bal_acc_pruned_tree1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_pruned_tree1
 ```
 
-(2) Boosted tree:
+### Boosted tree
+
+Let's proceed to the Boosted Tree:
 ```{r}
 set.seed(1)
-boost2 <- boosting(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
-boost2_pred_valid <- predict(boost2, valid_df, type="class")
-boost2.cm <- confusionMatrix(as.factor(boost2_pred_valid$class), valid_df$binned_quality)
-boost2.cm
+boost1 <- boosting(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
+boost1_pred_test <- predict(boost1, test_df, type="class")
+boost1.cm <- confusionMatrix(as.factor(boost1_pred_test$class), test_df$binned_quality)
+boost1.cm
+
+kappa_boost1 = boost1.cm$overall[2]
+kappa_boost1
+
+low_sensitivity = boost1.cm$byClass[3,1]
+intermediate_sensitivity = boost1.cm$byClass[2,1]
+high_sensitivity = boost1.cm$byClass[1,1]
+bal_acc_boost1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_boost1
 ```
 
-(3) Bagged tree:
+### Bagged tree
+
+Let's proceed to the Bagged Tree:
 ```{r}
 set.seed(1)
-bag2 <- bagging(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
-bag2_pred_valid <- predict(bag2, valid_df, type="class")
-bag2.cm <- confusionMatrix(as.factor(bag2_pred_valid$class), valid_df$binned_quality)
-bag2.cm
+bag1 <- bagging(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
+bag1_pred_test <- predict(bag1, test_df, type="class")
+bag1.cm <- confusionMatrix(as.factor(bag1_pred_test$class), test_df$binned_quality)
+bag1.cm
+
+kappa_bag1 = bag1.cm$overall[2]
+kappa_bag1
+
+low_sensitivity = bag1.cm$byClass[3,1]
+intermediate_sensitivity = bag1.cm$byClass[2,1]
+high_sensitivity = bag1.cm$byClass[1,1]
+bal_acc_bag1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_bag1
 ```
 
-(4) Random Forest:
+### Random Forest
+
+Let's proceed to the Random Forest:
 ```{r}
 set.seed(1)
-rf2 <- randomForest(os_train_df[-11], os_train_df$binned_quality, control = rpart.control(xval = 5))
-rf2_pred_valid <- predict(rf2, valid_df, type="class")
-rf2.cm <- confusionMatrix(rf2_pred_valid, valid_df$binned_quality)
-rf2.cm
+rf1 <- randomForest(os_train_df[-11], os_train_df$binned_quality, control = rpart.control(xval = 5))
+rf1_pred_test <- predict(rf1, test_df, type="class")
+rf1.cm <- confusionMatrix(rf1_pred_test, test_df$binned_quality)
+rf1.cm
+
+kappa_rf1 = rf1.cm$overall[2]
+kappa_rf1
+
+low_sensitivity = rf1.cm$byClass[3,1]
+intermediate_sensitivity = rf1.cm$byClass[2,1]
+high_sensitivity = rf1.cm$byClass[1,1]
+bal_acc_rf1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_rf1
 ```
 
+## Neural Nets
 
-### Oversampled Neural Nets :
+As stated earlier in the Data Exploratory Analysis, we will use the neuralnet package. To do so, we will use the oversampled and normalized training set that contains dummies for the outcome variable.
+
+In order to choose the best number of nodes, we will use a loop (2 to 10 nodes) and look at the performance of the model on the validation set (based on the kappa value). We will repeat this operation twice, once with a threshold of 0.1, and once with a threshold of 0.2.
+
+### Determination of the best Neural Net with a threshold of 0.1
+
 ```{r}
-set.seed(1)
-nn2 <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = os_train_norm_dummy_df[, -11], hidden = 4, linear.output = FALSE, threshold = 0.2)
-plot(nn1, rep="best", cex=0.8)
+nn_nodes_1 <- data.frame("number_nodes" = seq(from= 2, to = 10), "kappa_value" = NA, "balanced_accuracy" = NA)
 
-# valid_pred_nn1 <- compute(nn1, valid_norm_dummy_df[, -c(11:14)])$net.result
-# valid_pred_nn1 <- data.frame("Prediction" = ifelse(max.col(valid_pred_nn1[ ,1:3])==1, "High", ifelse(max.col(valid_pred_nn1[ ,1:3])==2, "Intermediate", "Low")))
+for (i in 2:10){
+  set.seed(1)
+  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.1)
+  valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 12, 13, 14)]))
+  names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
+  valid_pred_nn$Prediction <- NA
 
-valid_pred_nn2 <- data.frame(predict(nn2, valid_norm_dummy_df[, -c(11, 14)]))
-names(valid_pred_nn2)[1:3] <- c("High", "Intermediate", "Low")
-valid_pred_nn2$Prediction <- 0
-
-for(i in 1:length(valid_pred_nn2$High)) {
-  valid_pred_nn2[i, 4] <- names(which.max(valid_pred_nn2[i, 1:3]))
+  for(j in 1:length(valid_pred_nn$High)) {
+  valid_pred_nn[j, 4] <- names(which.max(valid_pred_nn[j, 1:3]))
+}
+  
+  nn.cm <- confusionMatrix(as.factor(valid_pred_nn$Prediction),valid_norm_df$binned_quality)
+  nn_nodes_1[i-1, 2] <- nn.cm[["overall"]][["Kappa"]]
+  nn_nodes_1[i-1, 3] <- (nn.cm$byClass[3,1] + nn.cm$byClass[2,1] + nn.cm$byClass[1,1]) / 3
 }
 
-confusionMatrix(as.factor(valid_pred_nn2$Prediction), valid_norm_df$binned_quality)
+nn_nodes_1
+```
+
+### Determination of the best Neural Net with a threshold of 0.2
+
+```{r}
+nn_nodes_2 <- data.frame("number_nodes" = seq(from= 2, to = 10), "kappa_value" = NA, "balanced_accuracy" = NA)
+
+for (i in 2:10){
+  set.seed(1)
+  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.2)
+  valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 12, 13, 14)]))
+  names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
+  valid_pred_nn$Prediction <- NA
+
+  for(j in 1:length(valid_pred_nn$High)) {
+  valid_pred_nn[j, 4] <- names(which.max(valid_pred_nn[j, 1:3]))
+}
+  
+  nn.cm <- confusionMatrix(as.factor(valid_pred_nn$Prediction),valid_norm_df$binned_quality)
+  nn_nodes_2[i-1, 2] <- nn.cm[["overall"]][["Kappa"]]
+  nn_nodes_2[i-1, 3] <- (nn.cm$byClass[3,1] + nn.cm$byClass[2,1] + nn.cm$byClass[1,1]) / 3
+}
+
+nn_nodes_2
+```
+
+### Best Neural Net
+
+Best Neural Net is with threshold = 0.1 and 7 nodes:
+```{r}
+set.seed(1)
+nn1 <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = 7, linear.output = FALSE, threshold = 0.1)
+
+test_pred_nn1 <- data.frame(predict(nn1, test_norm_dummy_df[, -c(11, 12, 13, 14)]))
+names(test_pred_nn1)[1:3] <- c("High", "Intermediate", "Low")
+test_pred_nn1$Prediction <- NA
+
+for(j in 1:length(test_pred_nn1$High)) {
+test_pred_nn1[j, 4] <- names(which.max(test_pred_nn1[j, 1:3]))
+}
+
+nn1.cm <- confusionMatrix(as.factor(test_pred_nn1$Prediction), test_norm_df$binned_quality)
+nn1.cm
+
+kappa_nn1 = nn1.cm$overall[2]
+kappa_nn1
+
+low_sensitivity = nn1.cm$byClass[3,1]
+intermediate_sensitivity = nn1.cm$byClass[2,1]
+high_sensitivity = nn1.cm$byClass[1,1]
+bal_acc_nn1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_nn1
 ```
