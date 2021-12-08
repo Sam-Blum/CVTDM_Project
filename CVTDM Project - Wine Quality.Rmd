@@ -28,6 +28,7 @@ library(randomForest)
 library(imbalance)
 library(e1071)
 library(neuralnet)
+library(nnet)
 
 # setwd("~/GitHub/CVTDM_Project")
 wine = read.csv(file = "winequality-white.csv", header = T, sep = ";")
@@ -271,7 +272,7 @@ Note that we will use the training sets with oversampling on 'Low' quality obser
 
 Let's proceed to the kNN:
 ```{r, warning = FALSE}
-#initialize a new data frame with three columns: k, accuracy, and balanced_accuracy
+#initialize a new data frame with three columns: k, kappa, and balanced_accuracy
 best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
 
 #perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
@@ -289,7 +290,7 @@ balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_a
 
 plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
 
-which.max(best_k_df$kappa)#best k based on accuracy
+which.max(best_k_df$kappa)#best k based on kappa
 which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
 ```
 
@@ -298,7 +299,7 @@ From the plots above, it seems that the best number of neighbours (i.e., number 
 Choosing this parameter(k=2), we can assess the predictive performance of the kNN model on the test set:
 ```{r, warning = FALSE}
 #perform knn classification on the test set using best k = 1
-best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2)
+best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
 confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
 
 kappa_best_knn = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
@@ -314,12 +315,12 @@ bal_acc_best_knn
 
 [COMMENTS ON RESULTS]
 
-## Ordinal logistic regression 
+## Logistic regression 
 
 [COMMENTS ON METHODOLOGY]
 
 ```{r, warning = FALSE}
-os_log_reg = polr(binned_quality ~ ., data = os_train_df)
+os_log_reg = multinom(binned_quality ~ ., data = os_train_df)
 summary(os_log_reg)
 ```
 
@@ -546,3 +547,32 @@ high_sensitivity = nn1.cm$byClass[1,1]
 bal_acc_nn1 = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 bal_acc_nn1
 ```
+
+### Ensembles
+
+```{r, warning = FALSE}
+ensembles_pred_df = data.frame("actual_value" = test_df$binned_quality,
+                              "knn_pred" = best_knn_pred,
+                              "log_pred" = os_log_pred$pred,
+                              "nb_pred" = os_nb_pred,
+                              "tree_pred" = pruned_tree1_pred_test,
+                              "boosting_pred" = as.factor(boost1_pred_test$class),
+                              "bagging_pred" = as.factor(bag1_pred_test$class),
+                              "rf_pred" = rf1_pred_test, 
+                              "nnet_pred" = as.factor(test_pred_nn1$Prediction))
+ensembles_pred_df$majority_vote = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+head(ensembles_pred_df)
+```
+
+```{r, warning = FALSE}
+#ensemble_prob_low_df = data.frame("knn_prob_low",
+                     #"log_prob_low",
+                     #"nb_prob_low",
+                     #"tree_prob_low",
+                     #"boosting_prob_low",
+                     #"bagging_prob_low",
+                     #"rf_prob_low",
+                     #"nnet_prob_low")
+```
+
+
