@@ -298,16 +298,17 @@ From the plots above, it seems that the best number of neighbours (i.e., number 
 
 Choosing this parameter(k=2), we can assess the predictive performance of the kNN model on the test set:
 ```{r, warning = FALSE}
-#perform knn classification on the test set using best k = 1
-best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
-confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix 
+#perform knn classification on the test set using best k = 2
+set.seed(1)
+best_knn_pred = knn3Train(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
+confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])#create corresponding confusion matrix 
 
-kappa_best_knn = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
+kappa_best_knn = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$overall[2]
 kappa_best_knn
 
-low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
-intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
-high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
+low_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[1,1]
 
 bal_acc_best_knn = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 bal_acc_best_knn
@@ -356,6 +357,7 @@ os_nb_model
 
 ```{r, warning = FALSE}
 os_nb_pred = predict(os_nb_model, newdata = test_df, type = "class")
+os_nb_prob = predict(os_nb_model, newdata = test_df, type = "raw")
 confusionMatrix(os_nb_pred, test_df[,11])
 
 kappa_bayes = confusionMatrix(os_nb_pred, test_df[,11])$overall[2]
@@ -393,6 +395,7 @@ pruned_tree1$variable.importance
 
 # We can now predict the outcome:
 pruned_tree1_pred_test <- predict(pruned_tree1, test_df, type="class")
+pruned_tree1_prob_test <- predict(pruned_tree1, test_df, type="prob")
 pruned_tree1_cm <- confusionMatrix(pruned_tree1_pred_test, test_df$binned_quality)
 pruned_tree1_cm
 
@@ -413,6 +416,7 @@ Let's proceed to the Boosted Tree:
 set.seed(1)
 boost1 <- boosting(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
 boost1_pred_test <- predict(boost1, test_df, type="class")
+boost1_prob_test <- predict(boost1, test_df, type="prob")
 boost1.cm <- confusionMatrix(as.factor(boost1_pred_test$class), test_df$binned_quality)
 boost1.cm
 
@@ -433,6 +437,7 @@ Let's proceed to the Bagged Tree:
 set.seed(1)
 bag1 <- bagging(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
 bag1_pred_test <- predict(bag1, test_df, type="class")
+bag1_prob_test <- predict(bag1, test_df, type="prob")
 bag1.cm <- confusionMatrix(as.factor(bag1_pred_test$class), test_df$binned_quality)
 bag1.cm
 
@@ -453,6 +458,7 @@ Let's proceed to the Random Forest:
 set.seed(1)
 rf1 <- randomForest(os_train_df[-11], os_train_df$binned_quality, control = rpart.control(xval = 5))
 rf1_pred_test <- predict(rf1, test_df, type="class")
+rf1_prob_test <- predict(rf1, test_df, type="prob")
 rf1.cm <- confusionMatrix(rf1_pred_test, test_df$binned_quality)
 rf1.cm
 
@@ -551,6 +557,47 @@ bal_acc_nn1
 ### Ensembles
 
 ```{r, warning = FALSE}
+ensemble_prob_low_df = data.frame("knn_prob_low" = attr(best_knn_pred, "prob")[,3],
+                     "log_prob_low" = os_log_prob[,3],
+                     "nb_prob_low" = os_nb_prob[,3],
+                     "tree_prob_low" = pruned_tree1_prob_test[,3],
+                     "boosting_prob_low" = boost1_prob_test$prob[,3],
+                     "bagging_prob_low" = bag1_prob_test$prob[,3],
+                     "rf_prob_low" = rf1_prob_test[,3],
+                     "nnet_prob_low" = test_pred_nn1[,3])
+ensemble_prob_low_df$mean_prob_low = apply(ensemble_prob_low_df, 1, mean)
+head(ensemble_prob_low_df)
+
+ensemble_prob_inter_df = data.frame("knn_prob_inter" = attr(best_knn_pred, "prob")[,2],
+                     "log_prob_inter" = os_log_prob[,2],
+                     "nb_prob_inter" = os_nb_prob[,2],
+                     "tree_prob_inter" = pruned_tree1_prob_test[,2],
+                     "boosting_prob_inter" = boost1_prob_test$prob[,2],
+                     "bagging_prob_inter" = bag1_prob_test$prob[,2],
+                     "rf_prob_inter" = rf1_prob_test[,2],
+                     "nnet_prob_inter" = test_pred_nn1[,2])
+ensemble_prob_inter_df$mean_prob_inter = apply(ensemble_prob_inter_df, 1, mean)
+head(ensemble_prob_inter_df)
+
+ensemble_prob_high_df = data.frame("knn_prob_high" = attr(best_knn_pred, "prob")[,1],
+                     "log_prob_high" = os_log_prob[,1],
+                     "nb_prob_high" = os_nb_prob[,1],
+                     "tree_prob_high" = pruned_tree1_prob_test[,1],
+                     "boosting_prob_high" = boost1_prob_test$prob[,1],
+                     "bagging_prob_high" = bag1_prob_test$prob[,1],
+                     "rf_prob_high" = rf1_prob_test[,1],
+                     "nnet_prob_high" = test_pred_nn1[,1])
+ensemble_prob_high_df$mean_prob_high = apply(ensemble_prob_high_df, 1, mean)
+head(ensemble_prob_high_df)
+
+ensemble_prob_df = data.frame("Low" = ensemble_prob_low_df$mean_prob_low,
+                              "Intermediate" = ensemble_prob_inter_df$mean_prob_inter,
+                              "High" = ensemble_prob_high_df$mean_prob_high)
+ensemble_prob_df$mean_prob_pred = as.factor(colnames(ensemble_prob_df)[apply(ensemble_prob_df,1,which.max)])
+head(ensemble_prob_df)
+```
+
+```{r, warning = FALSE}
 ensembles_pred_df = data.frame("actual_value" = test_df$binned_quality,
                               "knn_pred" = best_knn_pred,
                               "log_pred" = os_log_pred$pred,
@@ -560,19 +607,7 @@ ensembles_pred_df = data.frame("actual_value" = test_df$binned_quality,
                               "bagging_pred" = as.factor(bag1_pred_test$class),
                               "rf_pred" = rf1_pred_test, 
                               "nnet_pred" = as.factor(test_pred_nn1$Prediction))
-ensembles_pred_df$majority_vote = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+ensembles_pred_df$majority_vote_pred = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+ensembles_pred_df$mean_prob_pred = ensemble_prob_df$mean_prob_pred
 head(ensembles_pred_df)
 ```
-
-```{r, warning = FALSE}
-#ensemble_prob_low_df = data.frame("knn_prob_low",
-                     #"log_prob_low",
-                     #"nb_prob_low",
-                     #"tree_prob_low",
-                     #"boosting_prob_low",
-                     #"bagging_prob_low",
-                     #"rf_prob_low",
-                     #"nnet_prob_low")
-```
-
-

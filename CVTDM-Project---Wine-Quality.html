@@ -513,50 +513,51 @@ plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = &quot;v&quot;)</c
 <pre><code>## [1] 2</code></pre>
 <p>From the plots above, it seems that the best number of neighbours (i.e., number of k’s) is k=2 if we want to maximize the balanced accuracy and the kappa value.</p>
 <p>Choosing this parameter(k=2), we can assess the predictive performance of the kNN model on the test set:</p>
-<pre class="r"><code>#perform knn classification on the test set using best k = 1
-best_knn_pred = knn(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
-confusionMatrix(best_knn_pred, test_norm_df[,11])#create corresponding confusion matrix </code></pre>
+<pre class="r"><code>#perform knn classification on the test set using best k = 2
+set.seed(1)
+best_knn_pred = knn3Train(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
+confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])#create corresponding confusion matrix </code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
 ##               Reference
 ## Prediction     High Intermediate Low
-##   High          161          169   5
-##   Intermediate   51          556  30
-##   Low             0            5   1
+##   High          123           99   2
+##   Intermediate   87          606  27
+##   Low             2           25   7
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.7342          
-##                  95% CI : (0.7053, 0.7616)
+##                Accuracy : 0.7526          
+##                  95% CI : (0.7243, 0.7793)
 ##     No Information Rate : 0.7464          
-##     P-Value [Acc &gt; NIR] : 0.8211          
+##     P-Value [Acc &gt; NIR] : 0.3449          
 ##                                           
-##                   Kappa : 0.3949          
+##                   Kappa : 0.3807          
 ##                                           
-##  Mcnemar&#39;s Test P-Value : &lt;2e-16          
+##  Mcnemar&#39;s Test P-Value : 0.8372          
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: High Class: Intermediate Class: Low
-## Sensitivity               0.7594              0.7616   0.027778
-## Specificity               0.7728              0.6734   0.994692
-## Pos Pred Value            0.4806              0.8728   0.166667
-## Neg Pred Value            0.9207              0.4897   0.963992
+## Sensitivity               0.5802              0.8301   0.194444
+## Specificity               0.8681              0.5403   0.971338
+## Pos Pred Value            0.5491              0.8417   0.205882
+## Neg Pred Value            0.8820              0.5194   0.969280
 ## Prevalence                0.2168              0.7464   0.036810
-## Detection Rate            0.1646              0.5685   0.001022
-## Detection Prevalence      0.3425              0.6513   0.006135
-## Balanced Accuracy         0.7661              0.7175   0.511235</code></pre>
-<pre class="r"><code>kappa_best_knn = confusionMatrix(best_knn_pred, test_norm_df[,11])$overall[2]
+## Detection Rate            0.1258              0.6196   0.007157
+## Detection Prevalence      0.2290              0.7362   0.034765
+## Balanced Accuracy         0.7242              0.6852   0.582891</code></pre>
+<pre class="r"><code>kappa_best_knn = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$overall[2]
 kappa_best_knn</code></pre>
 <pre><code>##     Kappa 
-## 0.3949143</code></pre>
-<pre class="r"><code>low_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[3,1]
-intermediate_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[2,1]
-high_sensitivity = confusionMatrix(best_knn_pred, test_norm_df[,11])$byClass[1,1]
+## 0.3807082</code></pre>
+<pre class="r"><code>low_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$byClass[1,1]
 
 bal_acc_best_knn = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 bal_acc_best_knn</code></pre>
-<pre><code>## [1] 0.5162852</code></pre>
+<pre><code>## [1] 0.5349234</code></pre>
 <p>[COMMENTS ON RESULTS]</p>
 </div>
 <div id="logistic-regression" class="section level2">
@@ -724,6 +725,7 @@ os_nb_model</code></pre>
 ##   Intermediate 2.325167 0.1063334
 ##   Low          2.320881 0.0999365</code></pre>
 <pre class="r"><code>os_nb_pred = predict(os_nb_model, newdata = test_df, type = &quot;class&quot;)
+os_nb_prob = predict(os_nb_model, newdata = test_df, type = &quot;raw&quot;)
 confusionMatrix(os_nb_pred, test_df[,11])</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
@@ -844,6 +846,7 @@ pruned_tree1$variable.importance</code></pre>
 ##             51.28073</code></pre>
 <pre class="r"><code># We can now predict the outcome:
 pruned_tree1_pred_test &lt;- predict(pruned_tree1, test_df, type=&quot;class&quot;)
+pruned_tree1_prob_test &lt;- predict(pruned_tree1, test_df, type=&quot;prob&quot;)
 pruned_tree1_cm &lt;- confusionMatrix(pruned_tree1_pred_test, test_df$binned_quality)
 pruned_tree1_cm</code></pre>
 <pre><code>## Confusion Matrix and Statistics
@@ -893,6 +896,7 @@ bal_acc_pruned_tree1</code></pre>
 <pre class="r"><code>set.seed(1)
 boost1 &lt;- boosting(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
 boost1_pred_test &lt;- predict(boost1, test_df, type=&quot;class&quot;)
+boost1_prob_test &lt;- predict(boost1, test_df, type=&quot;prob&quot;)
 boost1.cm &lt;- confusionMatrix(as.factor(boost1_pred_test$class), test_df$binned_quality)
 boost1.cm</code></pre>
 <pre><code>## Confusion Matrix and Statistics
@@ -942,6 +946,7 @@ bal_acc_boost1</code></pre>
 <pre class="r"><code>set.seed(1)
 bag1 &lt;- bagging(binned_quality ~ ., data=os_train_df, control = rpart.control(xval = 5))
 bag1_pred_test &lt;- predict(bag1, test_df, type=&quot;class&quot;)
+bag1_prob_test &lt;- predict(bag1, test_df, type=&quot;prob&quot;)
 bag1.cm &lt;- confusionMatrix(as.factor(bag1_pred_test$class), test_df$binned_quality)
 bag1.cm</code></pre>
 <pre><code>## Confusion Matrix and Statistics
@@ -991,6 +996,7 @@ bal_acc_bag1</code></pre>
 <pre class="r"><code>set.seed(1)
 rf1 &lt;- randomForest(os_train_df[-11], os_train_df$binned_quality, control = rpart.control(xval = 5))
 rf1_pred_test &lt;- predict(rf1, test_df, type=&quot;class&quot;)
+rf1_prob_test &lt;- predict(rf1, test_df, type=&quot;prob&quot;)
 rf1.cm &lt;- confusionMatrix(rf1_pred_test, test_df$binned_quality)
 rf1.cm</code></pre>
 <pre><code>## Confusion Matrix and Statistics
@@ -1184,6 +1190,97 @@ bal_acc_nn1</code></pre>
 </div>
 <div id="ensembles" class="section level3">
 <h3>Ensembles</h3>
+<pre class="r"><code>ensemble_prob_low_df = data.frame(&quot;knn_prob_low&quot; = attr(best_knn_pred, &quot;prob&quot;)[,3],
+                     &quot;log_prob_low&quot; = os_log_prob[,3],
+                     &quot;nb_prob_low&quot; = os_nb_prob[,3],
+                     &quot;tree_prob_low&quot; = pruned_tree1_prob_test[,3],
+                     &quot;boosting_prob_low&quot; = boost1_prob_test$prob[,3],
+                     &quot;bagging_prob_low&quot; = bag1_prob_test$prob[,3],
+                     &quot;rf_prob_low&quot; = rf1_prob_test[,3],
+                     &quot;nnet_prob_low&quot; = test_pred_nn1[,3])
+ensemble_prob_low_df$mean_prob_low = apply(ensemble_prob_low_df, 1, mean)
+head(ensemble_prob_low_df)</code></pre>
+<pre><code>##    knn_prob_low log_prob_low nb_prob_low tree_prob_low boosting_prob_low
+## 2           0.0   0.45765364 0.043030444    0.04731861       0.202286713
+## 8           0.0   0.06849971 0.002467569    0.04731861       0.049828885
+## 10          0.0   0.11672012 0.009478690    0.00000000       0.002779933
+## 16          0.0   0.02779602 0.001457415    0.00000000       0.000000000
+## 21          0.0   0.27290659 0.150612175    0.00000000       0.037236411
+## 24          0.5   0.71259627 0.545155143    0.78260870       0.530390715
+##    bagging_prob_low rf_prob_low nnet_prob_low mean_prob_low
+## 2              0.00       0.036  2.258271e-02    0.10110902
+## 8              0.00       0.006  2.197430e-31    0.02176435
+## 10             0.00       0.040  3.759778e-03    0.02159231
+## 16             0.00       0.004  1.183352e-12    0.00415668
+## 21             0.00       0.044  3.753959e-03    0.06356364
+## 24             0.57       0.624  1.000000e+00    0.65809385</code></pre>
+<pre class="r"><code>ensemble_prob_inter_df = data.frame(&quot;knn_prob_inter&quot; = attr(best_knn_pred, &quot;prob&quot;)[,2],
+                     &quot;log_prob_inter&quot; = os_log_prob[,2],
+                     &quot;nb_prob_inter&quot; = os_nb_prob[,2],
+                     &quot;tree_prob_inter&quot; = pruned_tree1_prob_test[,2],
+                     &quot;boosting_prob_inter&quot; = boost1_prob_test$prob[,2],
+                     &quot;bagging_prob_inter&quot; = bag1_prob_test$prob[,2],
+                     &quot;rf_prob_inter&quot; = rf1_prob_test[,2],
+                     &quot;nnet_prob_inter&quot; = test_pred_nn1[,2])
+ensemble_prob_inter_df$mean_prob_inter = apply(ensemble_prob_inter_df, 1, mean)
+head(ensemble_prob_inter_df)</code></pre>
+<pre><code>##    knn_prob_inter log_prob_inter nb_prob_inter tree_prob_inter
+## 2             1.0      0.5235637     0.8579922       0.9148265
+## 8             1.0      0.8861116     0.9796600       0.9148265
+## 10            1.0      0.7017906     0.7496992       0.8000000
+## 16            0.0      0.5507283     0.2353584       0.8000000
+## 21            0.5      0.5404391     0.1949099       0.7500000
+## 24            0.5      0.2840326     0.4533184       0.2173913
+##    boosting_prob_inter bagging_prob_inter rf_prob_inter nnet_prob_inter
+## 2            0.7731751               1.00         0.936    9.613318e-01
+## 8            0.8467026               1.00         0.886    9.923534e-01
+## 10           0.6889582               0.97         0.766    7.553000e-01
+## 16           0.5371359               0.79         0.564    4.467463e-01
+## 21           0.4699310               0.19         0.236    7.530944e-01
+## 24           0.4633562               0.43         0.370    4.542689e-06
+##    mean_prob_inter
+## 2        0.8708612
+## 8        0.9382068
+## 10       0.8039685
+## 16       0.4904961
+## 21       0.4542968
+## 24       0.3397629</code></pre>
+<pre class="r"><code>ensemble_prob_high_df = data.frame(&quot;knn_prob_high&quot; = attr(best_knn_pred, &quot;prob&quot;)[,1],
+                     &quot;log_prob_high&quot; = os_log_prob[,1],
+                     &quot;nb_prob_high&quot; = os_nb_prob[,1],
+                     &quot;tree_prob_high&quot; = pruned_tree1_prob_test[,1],
+                     &quot;boosting_prob_high&quot; = boost1_prob_test$prob[,1],
+                     &quot;bagging_prob_high&quot; = bag1_prob_test$prob[,1],
+                     &quot;rf_prob_high&quot; = rf1_prob_test[,1],
+                     &quot;nnet_prob_high&quot; = test_pred_nn1[,1])
+ensemble_prob_high_df$mean_prob_high = apply(ensemble_prob_high_df, 1, mean)
+head(ensemble_prob_high_df)</code></pre>
+<pre><code>##    knn_prob_high log_prob_high nb_prob_high tree_prob_high boosting_prob_high
+## 2            0.0   0.018782670  0.098977343     0.03785489        0.024538214
+## 8            0.0   0.045388703  0.017872463     0.03785489        0.103468555
+## 10           0.0   0.181489332  0.240822061     0.20000000        0.308261870
+## 16           1.0   0.421475666  0.763184214     0.20000000        0.462864088
+## 21           0.5   0.186654317  0.654477970     0.25000000        0.492832606
+## 24           0.0   0.003371141  0.001526415     0.00000000        0.006253124
+##    bagging_prob_high rf_prob_high nnet_prob_high mean_prob_high
+## 2               0.00        0.028   9.894279e-03    0.027255924
+## 8               0.00        0.108   3.024159e-03    0.039451096
+## 10              0.03        0.194   1.209051e-01    0.159434790
+## 16              0.21        0.432   5.638764e-01    0.506675052
+## 21              0.81        0.720   1.222876e-01    0.467031564
+## 24              0.00        0.006   3.386546e-07    0.002143877</code></pre>
+<pre class="r"><code>ensemble_prob_df = data.frame(&quot;Low&quot; = ensemble_prob_low_df$mean_prob_low,
+                              &quot;Intermediate&quot; = ensemble_prob_inter_df$mean_prob_inter,
+                              &quot;High&quot; = ensemble_prob_high_df$mean_prob_high)
+ensemble_prob_df$mean_prob_pred = as.factor(colnames(ensemble_prob_df)[apply(ensemble_prob_df,1,which.max)])
+head(ensemble_prob_df)</code></pre>
+<pre><code>##          Low Intermediate        High mean_prob_pred
+## 1 0.10110902    0.8708612 0.027255924   Intermediate
+## 2 0.02176435    0.9382068 0.039451096   Intermediate
+## 3 0.02159231    0.8039685 0.159434790   Intermediate
+## 4 0.00415668    0.4904961 0.506675052           High
+## 5 0.06356364    0.4542968 0.467031564           High
+## 6 0.65809385    0.3397629 0.002143877            Low</code></pre>
 <pre class="r"><code>ensembles_pred_df = data.frame(&quot;actual_value&quot; = test_df$binned_quality,
                               &quot;knn_pred&quot; = best_knn_pred,
                               &quot;log_pred&quot; = os_log_pred$pred,
@@ -1193,30 +1290,30 @@ bal_acc_nn1</code></pre>
                               &quot;bagging_pred&quot; = as.factor(bag1_pred_test$class),
                               &quot;rf_pred&quot; = rf1_pred_test, 
                               &quot;nnet_pred&quot; = as.factor(test_pred_nn1$Prediction))
-ensembles_pred_df$majority_vote = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+ensembles_pred_df$majority_vote_pred = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+ensembles_pred_df$mean_prob_pred = ensemble_prob_df$mean_prob_pred
 head(ensembles_pred_df)</code></pre>
 <pre><code>##    actual_value     knn_pred     log_pred      nb_pred    tree_pred
 ## 2  Intermediate Intermediate Intermediate Intermediate Intermediate
 ## 8  Intermediate Intermediate Intermediate Intermediate Intermediate
 ## 10 Intermediate Intermediate Intermediate Intermediate Intermediate
 ## 16         High         High Intermediate         High Intermediate
-## 21         High         High Intermediate         High Intermediate
-## 24 Intermediate Intermediate          Low          Low          Low
-##    boosting_pred bagging_pred      rf_pred    nnet_pred majority_vote
-## 2   Intermediate Intermediate Intermediate Intermediate  Intermediate
-## 8   Intermediate Intermediate Intermediate Intermediate  Intermediate
-## 10  Intermediate Intermediate Intermediate Intermediate  Intermediate
-## 16  Intermediate Intermediate Intermediate         High  Intermediate
-## 21          High         High         High Intermediate          High
-## 24           Low          Low          Low          Low           Low</code></pre>
-<pre class="r"><code>#ensemble_prob_low_df = data.frame(&quot;knn_prob_low&quot;,
-                     #&quot;log_prob_low&quot;,
-                     #&quot;nb_prob_low&quot;,
-                     #&quot;tree_prob_low&quot;,
-                     #&quot;boosting_prob_low&quot;,
-                     #&quot;bagging_prob_low&quot;,
-                     #&quot;rf_prob_low&quot;,
-                     #&quot;nnet_prob_low&quot;)</code></pre>
+## 21         High Intermediate Intermediate         High Intermediate
+## 24 Intermediate          Low          Low          Low          Low
+##    boosting_pred bagging_pred      rf_pred    nnet_pred majority_vote_pred
+## 2   Intermediate Intermediate Intermediate Intermediate       Intermediate
+## 8   Intermediate Intermediate Intermediate Intermediate       Intermediate
+## 10  Intermediate Intermediate Intermediate Intermediate       Intermediate
+## 16  Intermediate Intermediate Intermediate         High       Intermediate
+## 21          High         High         High Intermediate               High
+## 24           Low          Low          Low          Low                Low
+##    mean_prob_pred
+## 2    Intermediate
+## 8    Intermediate
+## 10   Intermediate
+## 16           High
+## 21           High
+## 24            Low</code></pre>
 </div>
 </div>
 </div>
