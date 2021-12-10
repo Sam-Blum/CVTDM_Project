@@ -607,7 +607,58 @@ ensembles_pred_df = data.frame("actual_value" = test_df$binned_quality,
                               "bagging_pred" = as.factor(bag1_pred_test$class),
                               "rf_pred" = rf1_pred_test, 
                               "nnet_pred" = as.factor(test_pred_nn1$Prediction))
-ensembles_pred_df$majority_vote_pred = apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x))))
+ensembles_pred_df$majority_vote_pred = as.factor(apply(ensembles_pred_df[2:9], 1, function(x) names(which.max(table(x)))))
 ensembles_pred_df$mean_prob_pred = ensemble_prob_df$mean_prob_pred
 head(ensembles_pred_df)
+```
+
+```{r, warning = FALSE}
+confusionMatrix(ensembles_pred_df$majority_vote_pred, test_df[,11])
+
+kappa_majority = confusionMatrix(ensembles_pred_df$majority_vote_pred, test_df[,11])$overall[2]
+kappa_majority
+
+low_sensitivity = confusionMatrix(ensembles_pred_df$majority_vote_pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(ensembles_pred_df$majority_vote_pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(ensembles_pred_df$majority_vote_pred, test_df[,11])$byClass[1,1]
+
+bal_acc_majority = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_majority
+```
+
+```{r, warning = FALSE}
+confusionMatrix(ensembles_pred_df$mean_prob_pred, test_df[,11])
+
+kappa_mean_prob = confusionMatrix(ensembles_pred_df$mean_prob_pred, test_df[,11])$overall[2]
+kappa_mean_prob
+
+low_sensitivity = confusionMatrix(ensembles_pred_df$mean_prob_pred, test_df[,11])$byClass[3,1]
+intermediate_sensitivity = confusionMatrix(ensembles_pred_df$mean_prob_pred, test_df[,11])$byClass[2,1]
+high_sensitivity = confusionMatrix(ensembles_pred_df$mean_prob_pred, test_df[,11])$byClass[1,1]
+
+bal_acc_mean_prob = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
+bal_acc_mean_prob
+```
+
+### Comparing results
+
+```{r, warning = FALSE}
+results_df = data.frame("method" = c("knn", "logistic regression", "naive Bayes", "classification tree", "boosted tree", "bagged tree", "random forest", "neural net", "majority vote", "mean probability"),
+                        "kappa" = c(kappa_best_knn, kappa_logist, kappa_bayes, kappa_pruned_tree1, kappa_boost1, kappa_bag1, kappa_rf1, kappa_nn1, kappa_majority, kappa_mean_prob),
+                        "balanced_accuracy" = c(bal_acc_best_knn, bal_acc_logist, bal_acc_bayes, bal_acc_pruned_tree1, bal_acc_boost1, bal_acc_bag1, bal_acc_rf1, bal_acc_nn1, bal_acc_majority, bal_acc_mean_prob))
+head(results_df)
+```
+
+```{r, warning = FALSE}
+all_kappa_plot = ggplot(data = results_df, aes(x = reorder(method, kappa))) + 
+  geom_bar(aes(y = kappa), stat = "identity") +
+  labs(title = "Kappa for each method", x = "Method", y = "Kappa") +
+  theme(axis.text.x = element_text(angle=90))
+
+all_bal_acc_plot = ggplot(data = results_df, aes(x = reorder(method, balanced_accuracy))) + 
+  geom_bar(aes(y = balanced_accuracy), stat = "identity") +
+  labs(title = "Balanced accuracy for each method", x = "Method", y = "Balanced accuracy") +
+  theme(axis.text.x = element_text(angle=90))
+
+plot_grid(all_kappa_plot, all_bal_acc_plot)
 ```
