@@ -208,7 +208,7 @@ train_norm_dummy_df <- train_norm_df
 valid_norm_dummy_df <- valid_norm_df
 test_norm_dummy_df <- test_norm_df
 
-# Creation of the vectors
+# Creation of the vectors and implementation
 train_norm_dummy_df$high_quality <- ifelse(train_norm_dummy_df$binned_quality == "High", 1, 0)
 train_norm_dummy_df$intermediate_quality <- ifelse(train_norm_dummy_df$binned_quality == "Intermediate", 1, 0)
 train_norm_dummy_df$low_quality <- ifelse(train_norm_dummy_df$binned_quality == "Low", 1, 0)
@@ -234,11 +234,14 @@ We see that 'Intermediate' quality represents 74.6% of observations, whereas 'Hi
 
 To solve this problem, we can oversample the 'Low' observations and add them into the training set. We use Random Walk Oversampling, as this method is known to be one of the most effective, especially when facing such an imbalanced dataset (Huaxiang Zhang, Mingfang Li, 2014). 
 
-Now, let's create 400 new instances for 'Low' quality, and let's add them to the training set:
+Now, let's create 1736 new instances for 'Low' and 1298 instances for 'High' quality (such that we have the same number of observations in each category within the training set) and let's add them to the training set:
 ```{r, warning = FALSE}
 set.seed(1)
-add_train_df = rwo(train_df, 400, "binned_quality") # Generation of 400 instances
-os_train_df = rbind(train_df, add_train_df) # Combining the new instances to the training set
+add_low_train_df = rwo(train_df, 1736, "binned_quality") # Generation of 1736 instances for 'Low'
+os_train_df = rbind(train_df, add_low_train_df) # Combining the new instances to the training set
+set.seed(1)
+add_high_train_df = rwo(os_train_df, 1298, "binned_quality") # Generation of 1298 instances for 'High'
+os_train_df = rbind(os_train_df, add_high_train_df)
 ```
 
 Let's normalize the newly generated observations, and add them to the normalize training set:
@@ -294,13 +297,13 @@ which.max(best_k_df$kappa)#best k based on kappa
 which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
 ```
 
-From the plots above, it seems that the best number of neighbours (i.e., number of k's) is k=2 if we want to maximize the balanced accuracy and the kappa value. 
+From the plots above, it seems that the best number of neighbours (i.e., number of k's) is k=1 if we want to maximize the balanced accuracy and the kappa value. 
 
-Choosing this parameter(k=2), we can assess the predictive performance of the kNN model on the test set:
+Choosing this parameter(k=1), we can assess the predictive performance of the kNN model on the test set:
 ```{r, warning = FALSE}
-#perform knn classification on the test set using best k = 2
+#perform knn classification on the test set using best k = 1
 set.seed(1)
-best_knn_pred = knn3Train(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 2, prob = T)
+best_knn_pred = knn3Train(train = train_norm_df[,-11], test = test_norm_df[,-11], cl = train_norm_df[,11], k = 1, prob = T)
 confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])#create corresponding confusion matrix 
 
 kappa_best_knn = confusionMatrix(as.factor(best_knn_pred), test_norm_df[,11])$overall[2]
@@ -485,7 +488,7 @@ nn_nodes_1 <- data.frame("number_nodes" = seq(from= 2, to = 10), "kappa_value" =
 
 for (i in 2:10){
   set.seed(1)
-  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.1)
+  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = os_train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.1)
   valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 12, 13, 14)]))
   names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
   valid_pred_nn$Prediction <- NA
@@ -509,7 +512,7 @@ nn_nodes_2 <- data.frame("number_nodes" = seq(from= 2, to = 10), "kappa_value" =
 
 for (i in 2:10){
   set.seed(1)
-  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.2)
+  nn <- neuralnet(high_quality + intermediate_quality + low_quality ~ ., data = os_train_norm_dummy_df[, -11], hidden = i, linear.output = FALSE, threshold = 0.2)
   valid_pred_nn <- data.frame(predict(nn, valid_norm_dummy_df[, -c(11, 12, 13, 14)]))
   names(valid_pred_nn)[1:3] <- c("High", "Intermediate", "Low")
   valid_pred_nn$Prediction <- NA
