@@ -571,7 +571,7 @@ ensemble_prob_low_df = data.frame("knn_prob_low" = attr(best_knn_pred, "prob")[,
                      "bagging_prob_low" = bag1_prob_test$prob[,3],
                      "rf_prob_low" = rf1_prob_test[,3],
                      "nnet_prob_low" = test_pred_nn1[,3])
-ensemble_prob_low_df$mean_prob_low = apply(ensemble_prob_low_df[,c(1,2,3,5,7)], 1, mean)
+ensemble_prob_low_df$mean_prob_low = apply(ensemble_prob_low_df[,c(1,2,5,7)], 1, mean)
 head(ensemble_prob_low_df)
 
 ensemble_prob_inter_df = data.frame("knn_prob_inter" = attr(best_knn_pred, "prob")[,2],
@@ -582,7 +582,7 @@ ensemble_prob_inter_df = data.frame("knn_prob_inter" = attr(best_knn_pred, "prob
                      "bagging_prob_inter" = bag1_prob_test$prob[,2],
                      "rf_prob_inter" = rf1_prob_test[,2],
                      "nnet_prob_inter" = test_pred_nn1[,2])
-ensemble_prob_inter_df$mean_prob_inter = apply(ensemble_prob_inter_df[,c(1,2,3,5,7)], 1, mean)
+ensemble_prob_inter_df$mean_prob_inter = apply(ensemble_prob_inter_df[,c(1,2,5,7)], 1, mean)
 head(ensemble_prob_inter_df)
 
 ensemble_prob_high_df = data.frame("knn_prob_high" = attr(best_knn_pred, "prob")[,1],
@@ -593,7 +593,7 @@ ensemble_prob_high_df = data.frame("knn_prob_high" = attr(best_knn_pred, "prob")
                      "bagging_prob_high" = bag1_prob_test$prob[,1],
                      "rf_prob_high" = rf1_prob_test[,1],
                      "nnet_prob_high" = test_pred_nn1[,1])
-ensemble_prob_high_df$mean_prob_high = apply(ensemble_prob_high_df[,c(1,2,3,5,7)], 1, mean)
+ensemble_prob_high_df$mean_prob_high = apply(ensemble_prob_high_df[,c(1,2,5,7)], 1, mean)
 head(ensemble_prob_high_df)
 
 ensemble_prob_df = data.frame("Low" = ensemble_prob_low_df$mean_prob_low,
