@@ -385,7 +385,7 @@ bal_acc_bayes
 Let's first create a fully grown tree before pruning it to the best CP (i.e., CP associated with the minimum standard error):
 ```{r}
 set.seed(1)
-tree1 <- rpart(binned_quality ~ ., data=os_train_df, method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1, xval = 5))
+tree1 <- rpart(binned_quality ~ ., data=os_train_df, method = "class", control = rpart.control(cp = 0, minbucket = 2, xval = 5))
 
 # Look at the minimum standard error
 printcp(tree1)
@@ -394,7 +394,6 @@ which.min(tree1$cptable[, 4])
 # Take the cp associated with the minimum standard error to prune the tree:
 set.seed(1)
 pruned_tree1 <- prune(tree1, cp = tree1$cptable[which.min(tree1$cptable[, "xerror"]), "CP"])
-prp(pruned_tree1)
 
 # If we want to look at the most important variables:
 pruned_tree1$variable.importance
