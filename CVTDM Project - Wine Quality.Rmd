@@ -278,7 +278,7 @@ Let's proceed to the kNN:
 #initialize a new data frame with three columns: k, kappa, and balanced_accuracy
 best_k_df = data.frame(k = seq(1, 50, 1), kappa = rep(0,50), balanced_accuracy = rep(0,50))
 
-#perform knn on the validation set using different k then store accuracy and balanced accuracy for each k in the data frame
+#perform knn on the validation set using different k then store kappa and balanced accuracy for each k in the data frame
 for(i in 1:50) {
   knn_pred = knn(train = os_train_norm_df[,-11], test = valid_norm_df[,-11], cl = os_train_norm_df[,11], k = i)
   best_k_df[i, 2] = confusionMatrix(knn_pred, valid_norm_df[,11])$overall[2]
@@ -753,6 +753,7 @@ plot_knn_cm <- ggplot(plot_knn_cm, aes(Reference, Prediction, fill = pred, alpha
         scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
         xlim((levels(plot_knn_cm$Reference))) +
         labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: kNN")
+plot_knn_cm
 
 plot_os_log_cm <- ggplot(plot_os_log_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -761,6 +762,7 @@ plot_os_log_cm <- ggplot(plot_os_log_cm, aes(Reference, Prediction, fill = pred,
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_os_log_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Logistic Regression")
+plot_os_log_cm
 
 plot_bayes_cm <- ggplot(plot_bayes_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -769,6 +771,7 @@ plot_bayes_cm <- ggplot(plot_bayes_cm, aes(Reference, Prediction, fill = pred, a
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_bayes_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Naive Bayes")
+plot_bayes_cm
 
 plot_pruned_tree1_cm <- ggplot(plot_pruned_tree1_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -777,6 +780,7 @@ plot_pruned_tree1_cm <- ggplot(plot_pruned_tree1_cm, aes(Reference, Prediction, 
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_pruned_tree1_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Pruned Tree")
+plot_pruned_tree1_cm
 
 plot_boost1_cm <- ggplot(plot_boost1_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -785,6 +789,7 @@ plot_boost1_cm <- ggplot(plot_boost1_cm, aes(Reference, Prediction, fill = pred,
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_boost1_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Boosted Tree")
+plot_boost1_cm
 
 plot_bag1_cm <- ggplot(plot_bag1_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -793,6 +798,7 @@ plot_bag1_cm <- ggplot(plot_bag1_cm, aes(Reference, Prediction, fill = pred, alp
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_bag1_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Bagged Tree")
+plot_bag1_cm
 
 plot_rf1_cm <- ggplot(plot_rf1_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -801,6 +807,7 @@ plot_rf1_cm <- ggplot(plot_rf1_cm, aes(Reference, Prediction, fill = pred, alpha
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_rf1_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Random Forest")
+plot_rf1_cm
 
 plot_nn1_cm <- ggplot(plot_nn1_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -809,6 +816,7 @@ plot_nn1_cm <- ggplot(plot_nn1_cm, aes(Reference, Prediction, fill = pred, alpha
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_nn1_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Neural Net")
+plot_nn1_cm 
 
 plot_majority_vote_cm <- ggplot(plot_majority_vote_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -817,6 +825,7 @@ plot_majority_vote_cm <- ggplot(plot_majority_vote_cm, aes(Reference, Prediction
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_majority_vote_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Majority Vote (Ensembles)")
+plot_majority_vote_cm
 
 plot_mean_prob_cm <- ggplot(plot_mean_prob_cm, aes(Reference, Prediction, fill = pred, alpha = prop)) +
     geom_tile() + 
@@ -825,6 +834,5 @@ plot_mean_prob_cm <- ggplot(plot_mean_prob_cm, aes(Reference, Prediction, fill =
     scale_fill_manual(values = c(correct = "#5DADE2", error = "#EC7063")) +
     xlim((levels(plot_mean_prob_cm$Reference))) +
     labs(x = "Reference",y = "Prediction", title = "Confusion Matrix: Mean Probability (Ensembles)")
-
-plot_grid(plot_knn_cm, plot_os_log_cm, plot_bayes_cm, plot_pruned_tree1_cm, plot_boost1_cm, plot_bag1_cm, plot_rf1_cm, plot_nn1_cm, plot_majority_vote_cm, plot_mean_prob_cm)
+plot_mean_prob_cm
 ```
