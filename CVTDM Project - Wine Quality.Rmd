@@ -291,7 +291,8 @@ for(i in 1:50) {
 kappa_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=kappa), color="red") + theme_classic()
 balanced_accuray_plot = ggplot(data= best_k_df) + geom_line(aes(x=k,y=balanced_accuracy), color="blue") + theme_classic()
 
-plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
+knn_plot = plot_grid(kappa_plot, balanced_accuray_plot, ncol = 1, align = "v")
+knn_plot
 
 which.max(best_k_df$kappa)#best k based on kappa
 which.max(best_k_df$balanced_accuracy)#best k based on balanced accuracy
@@ -556,7 +557,8 @@ all_bal_acc_plot = ggplot(data = results_df, aes(x = reorder(method, balanced_ac
   labs(title = "Balanced accuracy for each method", x = "Method", y = "Balanced accuracy") +
   theme(axis.text.x = element_text(angle=90))
 
-plot_grid(all_kappa_plot, all_bal_acc_plot)
+results_plot1 = plot_grid(all_kappa_plot, all_bal_acc_plot)
+results_plot1
 ```
 
 ### Ensembles
@@ -665,7 +667,8 @@ all_bal_acc_plot2 = ggplot(data = results_df, aes(x = reorder(method, balanced_a
   labs(title = "Balanced accuracy for each method", x = "Method", y = "Balanced accuracy") +
   theme(axis.text.x = element_text(angle=90))
 
-plot_grid(all_kappa_plot2, all_bal_acc_plot2)
+results_plot2 = plot_grid(all_kappa_plot2, all_bal_acc_plot2)
+results_plot2
 ```
 
 ### Visualising Confusion Matrices for each method
