@@ -79,13 +79,13 @@ Let's continue by exploring the distribution of each variable:
 ```{r}
 par(mfrow=c(2, 3))
 for (i in 1:11) {
-  hist(wine[, i], main = c("Histogram for", names(wine[i])), xlab=names(wine[i]))
+  hist(wine[, i], main = c(names(wine[i])), xlab=names(wine[i]))
   abline(v = mean(wine[, i]), col = 1, lwd = 2)
   abline(v = median(wine[, i]), col = 2, lwd = 2)
 }
 
 par(mfrow=c(1, 1))
-barplot(table(wine$binned_quality), main = c("Histogram for quality", names(wine$binned_quality)), xlab=names(wine$binned_quality))
+barplot(table(wine$binned_quality), main = c(names(wine$binned_quality)), xlab=names(wine$binned_quality))
 ```
 
 Our dataset faces two problems we have to deal with: imbalance between quality groups ('Intermediate' quality is over-represented) and skewness in the distribution of the explanatory variables.
@@ -107,7 +107,7 @@ Let's have a look at the distribution of the variables after log-tranformation:
 ```{r}
 par(mfrow=c(2, 3))
 for (i in 1:11) {
-  hist(alllogwine[, i], main = c("Histogram for", names(alllogwine[i])), xlab=names(alllogwine[i]))
+  hist(alllogwine[, i], main = c(names(alllogwine[i])), xlab=names(alllogwine[i]))
   abline(v = mean(alllogwine[, i]), col = 1, lwd = 2)
   abline(v = median(alllogwine[, i]), col = 2, lwd = 2)
 }
@@ -153,8 +153,6 @@ Finally, let's look at this plot:
 ```{r}
 ggparcoord(wine, columns = 1:11, groupColumn = 13, showPoints = TRUE, alphaLines = 0.3, scale = "uniminmax") + scale_color_viridis(discrete = TRUE) + theme(axis.text.x = element_text(angle = 90))
 ```
-
-[... COMMENTS].
 
 # Data pre-processing
 ## Variable selection and log-transformation
@@ -271,8 +269,6 @@ Note that we will use the training sets with oversampling on 'Low' quality obser
 
 ## kNN
 
-[COMMENTS ON METHODOLOGY]
-
 Let's proceed to the kNN:
 ```{r, warning = FALSE}
 #initialize a new data frame with three columns: k, kappa, and balanced_accuracy
@@ -318,11 +314,7 @@ bal_acc_best_knn = (low_sensitivity + intermediate_sensitivity + high_sensitivit
 bal_acc_best_knn
 ```
 
-[COMMENTS ON RESULTS]
-
 ## Logistic regression 
-
-[COMMENTS ON METHODOLOGY]
 
 ```{r, warning = FALSE}
 os_log_reg = multinom(binned_quality ~ ., data = os_train_df)
@@ -349,11 +341,7 @@ bal_acc_logist = (low_sensitivity + intermediate_sensitivity + high_sensitivity)
 bal_acc_logist
 ```
 
-[COMMENTS ON RESULTS]
-
 ## Naive Bayes
-
-[COMMENTS ON METHODOLOGY]
 
 ```{r, warning = FALSE}
 os_nb_model = naiveBayes (binned_quality ~ ., data = os_train_df)
@@ -376,8 +364,6 @@ high_sensitivity = bayes_cm$byClass[1,1]
 bal_acc_bayes = (low_sensitivity + intermediate_sensitivity + high_sensitivity) / 3
 bal_acc_bayes
 ```
-
-[COMMENTS ON RESULTS]
 
 ## Classification trees
 ### Regular Classification Tree
